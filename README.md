@@ -83,3 +83,4 @@ Anotar 2 a 4 paragens por viagem e usar o mesmo `id_viagem` em todas as linhas d
 - [ ] Fase 5 — Modelo de Markov
 - [ ] Fase 6 — Procura + Markov
 - [ ] Fase 7 — Relatório e apresentação
+# tub-projeto
