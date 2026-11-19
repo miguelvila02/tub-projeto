@@ -1,0 +1,11 @@
+name: tub-projeto
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pandas>=2.0
+  - numpy>=1.24
+  - matplotlib>=3.7
+  - folium>=0.15
+  - jupyter
+  - ipykernel

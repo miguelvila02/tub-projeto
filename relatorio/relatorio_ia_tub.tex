@@ -1,0 +1,479 @@
+% =====================================================================
+%  Inteligência Artificial — Trânsito em Braga
+%  Proposta de Projeto  →  (mais tarde) Relatório Final
+%
+%  COMO USAR ESTE FICHEIRO
+%  - Para passar de proposta a relatório, muda \tipodocumento abaixo
+%    e descomenta as secções marcadas com  [RELATÓRIO]  no fim.
+%  - Os comentários "% TODO" assinalam o que falta preencher.
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+% ---------- Língua e codificação ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[portuguese]{babel}
+\usepackage{lmodern}
+
+% ---------- Página ----------
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{setspace}
+\setstretch{1.15}
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+% ---------- Matemática, tabelas, figuras ----------
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage{pgfgantt}
+\setlist{itemsep=0.2em, topsep=0.3em}
+
+% ---------- Código (para o relatório) ----------
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue!60!black}\bfseries,
+  commentstyle=\color{gray}\itshape,
+  stringstyle=\color{green!40!black},
+  frame=single, breaklines=true, columns=fullflexible,
+  literate={ã}{{\~a}}1 {á}{{\'a}}1 {à}{{\`a}}1 {â}{{\^a}}1 {é}{{\'e}}1
+           {ê}{{\^e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {õ}{{\~o}}1 {ô}{{\^o}}1
+           {ú}{{\'u}}1 {ç}{{\c c}}1
+}
+
+% ---------- Ligações (sempre por último) ----------
+\usepackage[hidelinks]{hyperref}
+
+% ---------- Atalhos ----------
+\newcommand{\tipodocumento}{Proposta de Projeto}   % mudar para: Relatório de Projeto
+\newcommand{\AStar}{A$^{*}$}
+\newcommand{\IDAStar}{IDA$^{*}$}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+% =====================================================================
+\begin{document}
+
+% ---------------------------------------------------------------------
+%  CAPA
+% ---------------------------------------------------------------------
+\hypersetup{pageanchor=false}
+\begin{titlepage}
+  \centering
+  \vspace*{\fill}
+
+  {\LARGE\bfseries Inteligência Artificial: Trânsito em Braga\par}
+  \vspace{1.2em}
+  {\large \tipodocumento\par}
+  \vspace{0.8em}
+  {\large\itshape Chegar a horas em Braga: procura informada e cadeias de Markov na rede dos TUB\par}
+
+  \vspace*{\fill}
+  \vspace*{\fill}
+
+  {\large\bfseries Miguel Vila\par}
+  \vspace{0.6em}
+  {\small Licenciatura em Ciência de Dados Aplicada\\
+          Universidade Católica Portuguesa --- Braga\\[0.3em]
+          \today\par}
+  \vspace{2cm}
+\end{titlepage}
+\hypersetup{pageanchor=true}
+
+% ---------------------------------------------------------------------
+%  ÍNDICE
+% ---------------------------------------------------------------------
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Proposta do Projeto}
+\label{sec:proposta}
+% =====================================================================
+
+\subsection{O problema}
+
+Quem anda de autocarro em Braga sabe que o horário é mais uma indicação
+do que uma garantia. Os TUB disponibilizam os horários de toda a rede em
+formato GTFS, e são esses dados que o Google Maps ou o Moovit usam para
+sugerir rotas. O problema é que estas aplicações calculam a rota mais
+rápida assumindo que todos os autocarros passam à hora certa.
+
+Isto falha sobretudo quando a viagem tem transbordos. Se o primeiro
+autocarro chegar três ou quatro minutos atrasado, podemos perder o
+segundo e acabar por demorar o dobro do previsto. Uma rota que no papel
+é a mais rápida pode ser, na prática, das menos fiáveis.
+
+A pergunta de partida do projeto é então:
+
+\begin{quote}
+\itshape A que horas devo sair, e por que rota, para chegar à
+Universidade Católica antes das 9h00 com 95\,\% de certeza?
+\end{quote}
+
+\subsection{Utilidade}
+
+O caso mais óbvio é o de qualquer estudante ou trabalhador que tem uma
+hora fixa para chegar. Toda a gente acaba por sair ``um bocado mais
+cedo, por precaução'', mas sem saber bem quanto. Com este trabalho
+queremos pôr um número nessa margem.
+
+Os resultados também podem interessar ao próprio operador, porque
+permitem identificar os transbordos mais frágeis, em que um pequeno
+atraso tem um efeito grande no tempo total de viagem.
+
+No contexto da unidade curricular, o projeto serve para ver na prática
+uma coisa que até agora só vimos em teoria: o que acontece a um problema
+de procura quando o ambiente deixa de ser determinista.
+
+\subsection{Objetivos}
+
+Dividimos o trabalho em três objetivos, cada um a partir do anterior:
+
+\begin{enumerate}
+  \item Encontrar a rota mais rápida segundo o horário publicado,
+        formulando a rede como um problema de procura e resolvendo-o com
+        custo uniforme, \AStar{} e algumas variantes. Queremos também
+        provar que a heurística usada é admissível.
+  \item Incluir os atrasos através de uma cadeia de Markov e procurar a
+        rota com menor tempo \emph{esperado}.
+  \item Encontrar a rota com maior probabilidade de chegar antes de uma
+        dada hora, avaliando as rotas candidatas por simulação.
+\end{enumerate}
+
+Se houver tempo, gostávamos ainda de experimentar uma versão em que o
+plano se ajusta durante a viagem (por exemplo, mudar de linha no
+transbordo se o primeiro autocarro vier atrasado). Isso já obriga a
+formular o problema como um MDP.
+
+\subsection{Estratégia}
+
+O primeiro passo é tratar os dados GTFS. Para o problema não ficar
+demasiado grande, vamos limitar-nos a um dia útil, a uma janela horária
+de manhã (7h00--10h00) e a uma zona da cidade que inclua a UCP.
+
+A partir daí construímos um grafo em que cada estado é um par
+(paragem, hora). As ligações entre estados correspondem a viajar num
+autocarro, caminhar até uma paragem próxima ou esperar. Sobre este
+grafo aplicamos os algoritmos de procura dados nas aulas e comparamos
+o número de nós expandidos, o tempo de execução e o custo das soluções.
+
+Para os atrasos, definimos uma cadeia de Markov com poucos estados
+(a tempo, atraso pequeno, atraso grande) e estimamos as probabilidades
+de transição. Por fim, geramos várias rotas candidatas com \AStar{} e
+simulamos milhares de viagens em cada uma, para ver com que frequência
+se chega a horas. O resultado que procuramos são casos concretos em que
+a rota mais rápida no horário não é a mais segura.
+
+\subsubsection*{Calendário}
+
+O plano de trabalho até à apresentação está na
+Figura~\ref{fig:gantt}. Marcámos também o Teste 2 e a entrega do TPC 2,
+porque calham a meio do projeto e condicionam o ritmo dessas semanas.
+
+\begin{figure}[H]
+\centering
+\begin{ganttchart}[
+    hgrid,
+    vgrid={*6{draw=none},dotted},
+    time slot format=isodate,
+    x unit=0.36cm,
+    y unit chart=0.55cm,
+    y unit title=0.5cm,
+    title height=1,
+    title label font=\scriptsize,
+    bar label font=\small,
+    milestone label font=\small\itshape,
+    bar height=0.5,
+    bar/.append style={fill=blue!35, draw=blue!60!black},
+    group/.append style={fill=black!70},
+    milestone/.append style={fill=red!70!black, draw=red!70!black},
+    milestone height=0.5,
+    milestone left shift=0.1, milestone right shift=-0.1
+  ]{2026-11-14}{2026-12-16}
+  \gantttitle{Novembro}{17} \gantttitle{Dezembro}{16} \\
+  \gantttitlelist{14,...,30}{1} \gantttitlelist{1,...,16}{1} \\
+  \ganttbar{Proposta}{2026-11-14}{2026-11-18} \\
+  \ganttmilestone{Entrega da proposta}{2026-11-18} \\
+  \ganttbar{Dados GTFS e grafo}{2026-11-19}{2026-11-25} \\
+  \ganttbar{Recolha de atrasos}{2026-11-19}{2026-12-04} \\
+  \ganttbar{Procura determinística}{2026-11-26}{2026-12-01} \\
+  \ganttbar{Modelo de Markov}{2026-12-02}{2026-12-06} \\
+  \ganttmilestone{Teste 2}{2026-12-07} \\
+  \ganttbar{Procura + Markov}{2026-12-08}{2026-12-12} \\
+  \ganttmilestone{Entrega TPC 2}{2026-12-09} \\
+  \ganttbar{Relatório e apresentação}{2026-12-13}{2026-12-16} \\
+  \ganttmilestone{Apresentação}{2026-12-16}
+\end{ganttchart}
+\caption{Calendário previsto do projeto.}
+\label{fig:gantt}
+\end{figure}
+
+\subsubsection*{Riscos e limitações}
+
+A maior dificuldade é que o GTFS só tem os horários previstos, não os
+atrasos reais. A ideia é registar nós próprios os atrasos em algumas
+viagens e, em paralelo, perguntar aos TUB se têm dados que possam
+partilhar. Se nada disso chegar, usamos probabilidades assumidas e
+analisamos o quanto os resultados mudam quando essas probabilidades
+mudam. O outro risco é o grafo crescer demais, o que se resolve
+reduzindo a zona ou a janela horária.
+
+% =====================================================================
+\section{Descrição PEAS e propriedades do ambiente}
+\label{sec:peas}
+% =====================================================================
+
+\subsection{Descrição PEAS}
+
+O agente que estamos a desenhar é um planeador de viagens: recebe uma
+origem, um destino e uma hora limite e devolve o percurso a fazer.
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{@{}l L@{}}
+\toprule
+\textbf{Componente} & \textbf{Descrição} \\
+\midrule
+Desempenho (P) &
+  Probabilidade de chegar antes da hora limite, tempo de viagem,
+  número de transbordos e distância feita a pé. \\[0.3em]
+Ambiente (E) &
+  Rede dos TUB (paragens, linhas e horários), ruas entre paragens,
+  atrasos dos autocarros e hora do dia. \\[0.3em]
+Atuadores (A) &
+  Indicar a próxima ação: apanhar a linha $X$ na paragem $Y$,
+  ir a pé até outra paragem, esperar ou sair. \\[0.3em]
+Sensores (S) &
+  Ficheiros GTFS, posição e hora atuais e, na versão adaptativa,
+  o atraso observado do autocarro. \\
+\bottomrule
+\end{tabularx}
+\caption{Descrição PEAS do planeador de viagens.}
+\end{table}
+
+\subsection{Propriedades do ambiente}
+
+Classificámos o ambiente de duas maneiras: considerando só o horário
+publicado e considerando os atrasos. A diferença entre as duas colunas
+é, no fundo, a razão de ser do projeto.
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{@{}l L L@{}}
+\toprule
+\textbf{Propriedade} & \textbf{Só horário} & \textbf{Com atrasos} \\
+\midrule
+Observabilidade        & Totalmente observável & Parcialmente observável (não se sabe o atraso futuro) \\
+Agentes                & Único & Único (o resto do trânsito faz parte do ambiente) \\
+Determinismo           & Determinista & Estocástico \\
+Episódico/sequencial   & Sequencial & Sequencial \\
+Estático/dinâmico      & Estático & Dinâmico \\
+Discreto/contínuo      & Discreto & Discreto \\
+Conhecido/desconhecido & Conhecido & Parcialmente conhecido (probabilidades estimadas) \\
+\bottomrule
+\end{tabularx}
+\caption{Classificação do ambiente nas sete propriedades.}
+\end{table}
+
+Com o horário apenas, o ambiente é totalmente observável, determinista,
+estático e conhecido, e por isso basta procurar uma sequência de ações
+antes de sair de casa. Com atrasos isso deixa de ser suficiente, e
+passa a fazer sentido trabalhar com probabilidades e, numa fase mais
+avançada, com políticas em vez de planos fixos.
+
+% =====================================================================
+\section{Ferramentas}
+\label{sec:ferramentas}
+% =====================================================================
+
+\subsection{Dados}
+
+Os dados principais vêm do GTFS dos TUB \cite{tubgtfs}. Os ficheiros que
+vamos usar são o \texttt{stops.txt} (paragens e coordenadas), o
+\texttt{routes.txt} (linhas), o \texttt{trips.txt} (viagens), o
+\texttt{stop\_times.txt} (hora de passagem em cada paragem) e o
+\texttt{calendar.txt} (dias em que cada serviço funciona). Os atrasos
+serão registados à parte, anotando a hora prevista e a hora real de
+passagem em viagens feitas por nós.
+% TODO: descrever como foi feita a recolha
+
+\subsection{Formulação como problema de procura}
+
+Seguindo os seis componentes vistos nas aulas:
+
+\begin{itemize}
+  \item estados: pares $(p, t)$, em que $p$ é uma paragem e $t$ a hora;
+  \item estado inicial: $(p_{\text{origem}}, t_{\text{saída}})$;
+  \item objetivo: estar na paragem de destino, a qualquer hora $t$;
+  \item ações: apanhar um autocarro que passe em $p$ depois de $t$,
+        caminhar até uma paragem próxima ou esperar;
+  \item modelo de transição: dado pelos horários do GTFS e, a pé, por uma
+        velocidade média de caminhada;
+  \item custo: o tempo que passa, com uma possível penalização por
+        cada transbordo.
+\end{itemize}
+
+\subsection{Algoritmos de procura}
+
+Vamos comparar os algoritmos da Tabela~\ref{tab:algoritmos} usando as
+quatro medidas do capítulo 3 de \cite{aima}: completude, otimalidade,
+tempo (nós expandidos) e memória (tamanho máximo da fronteira).
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{@{}l l L@{}}
+\toprule
+\textbf{Algoritmo} & \textbf{Avaliação} & \textbf{Para que serve aqui} \\
+\midrule
+Custo uniforme      & $f = g$                 & Solução ótima de referência \\
+\AStar{}            & $f = g + h$             & Algoritmo principal; ótimo se $h$ for admissível \\
+\AStar{} pesado     & $f = g + W\,h$, $W>1$   & Ver quanto se ganha em rapidez e quanto se perde no custo ($\le W \cdot C^{*}$) \\
+Procura em feixe    & $k$ melhores nós        & Memória limitada, sem garantias \\
+\IDAStar{}          & limite sobre $f$        & Memória linear (opcional) \\
+\bottomrule
+\end{tabularx}
+\caption{Algoritmos de procura a comparar.}
+\label{tab:algoritmos}
+\end{table}
+
+\subsection{Heurística}
+
+Como heurística usamos o tempo que se levaria a chegar ao destino em
+linha reta, à maior velocidade possível na rede:
+\[
+  h(p, t) = \frac{d(p, p_{\text{destino}})}{v_{\max}},
+\]
+onde $d$ é a distância em linha reta e $v_{\max}$ é a maior velocidade
+média registada num troço de autocarro, calculada a partir do próprio
+GTFS.
+
+Esta heurística é admissível porque não há nenhuma forma de percorrer a
+distância $d$ em menos de $d / v_{\max}$, uma vez que nenhum autocarro
+(e muito menos alguém a pé) vai mais depressa do que $v_{\max}$. Logo,
+$h(n) \le h^{*}(n)$ para qualquer nó $n$.
+
+É também consistente. Uma ação que leva de $p$ a $p'$ demora pelo menos
+$d(p,p')/v_{\max}$ e, pela desigualdade triangular,
+$d(p,p_{\text{destino}}) \le d(p,p') + d(p',p_{\text{destino}})$. Daqui
+resulta $h(n) \le c(n,n') + h(n')$.
+
+% TODO (relatório): comparar com h = 0 e com outras heurísticas;
+% calcular o fator de ramificação efetivo b*.
+
+\subsection{Cadeias de Markov}
+
+Para modelar os atrasos usamos uma cadeia de Markov com três estados:
+\[
+  S = \{\textsf{a tempo},\ \textsf{atraso pequeno},\ \textsf{atraso grande}\}.
+\]
+A ideia é que o atraso de um autocarro no troço seguinte só depende do
+atraso que traz no troço atual:
+\[
+  P(X_{k+1} = j \mid X_k = i, X_{k-1}, \dots, X_0) = P(X_{k+1} = j \mid X_k = i) = p_{ij}.
+\]
+
+As probabilidades estimam-se contando transições nos dados recolhidos,
+$\hat{p}_{ij} = n_{ij} / \sum_{j} n_{ij}$. Se houver dados suficientes,
+fazemos uma matriz para a hora de ponta e outra para o resto do dia. A
+partir da matriz $P$ podemos ainda calcular a distribuição estacionária
+($\pi = \pi P$), que indica a proporção de tempo que um autocarro passa
+em cada estado, e a distribuição do atraso ao fim de $k$ troços,
+$\mu_0 P^{k}$.
+
+\subsection{Simulação de Monte Carlo}
+
+A probabilidade de chegar a horas não se vai somando ao longo do
+caminho, ao contrário do tempo, por isso não pode ser usada diretamente
+como custo no \AStar{}. A solução é avaliar cada rota candidata por
+simulação: em cada viagem simulada sorteamos os atrasos a partir da
+cadeia de Markov, verificamos se os transbordos se conseguem fazer e
+registamos a hora de chegada. A fração de simulações que chegam a tempo
+dá-nos uma estimativa da probabilidade.
+
+\subsection{Processos de decisão de Markov (extensão)}
+
+Um MDP é definido por $(S, A, P, R)$: estados, ações, probabilidades de
+transição $P(s' \mid s, a)$ e recompensas. A diferença em relação à
+procura é que a solução deixa de ser uma sequência de ações e passa a
+ser uma política $\pi(s)$, que indica o que fazer em cada estado. No
+nosso caso, o estado teria a paragem, a hora e o atraso observado, o que
+permitiria decisões do tipo ``se o autocarro vier atrasado, troco de
+linha no transbordo''.
+
+\subsection{Software}
+
+O projeto será feito em Python, com \texttt{pandas} e \texttt{numpy}
+para os dados e as matrizes, a biblioteca \texttt{aima-python}
+\cite{aimapython} para a estrutura do problema e os algoritmos de
+procura, \texttt{matplotlib} para os gráficos e \texttt{folium} para
+desenhar a rede e as rotas num mapa.
+
+% =====================================================================
+%  [RELATÓRIO] Secções a descomentar quando o projeto avançar
+% =====================================================================
+
+% \section{Dados e construção do grafo}
+% \label{sec:dados}
+% % TODO: zona e janela horária escolhidas, número de paragens/arestas,
+% %       figura do mapa da rede (folium -> captura de ecrã).
+% % \begin{figure}[H]
+% %   \centering
+% %   \includegraphics[width=0.85\textwidth]{figuras/mapa_rede.png}
+% %   \caption{Rede filtrada dos TUB.}
+% % \end{figure}
+
+% \section{Procura determinística}
+% \label{sec:procura}
+% % TODO: implementação, pares origem/destino testados,
+% %       tabela de nós expandidos / tempo / custo para cada algoritmo,
+% %       gráfico do "eixo W" (W = 0, 1, 1.5, 2).
+
+% \section{Modelo de Markov dos atrasos}
+% \label{sec:markov}
+% % TODO: recolha de dados, matriz de transição estimada,
+% %       distribuição estacionária, validação por simulação.
+
+% \section{Resultados: horário vs.\ tempo esperado vs.\ probabilidade}
+% \label{sec:resultados}
+% % TODO: comparação dos três critérios, exemplos em que a rota mais
+% %       rápida não é a mais fiável, gráfico P(chegar antes das 9h00)
+% %       em função da hora de saída.
+
+% \section{Conclusões e trabalho futuro}
+% \label{sec:conclusoes}
+% % TODO: o que se aprendeu, limitações, extensão para MDP.
+
+% =====================================================================
+\begin{thebibliography}{9}
+
+\bibitem{aima}
+S.~Russell e P.~Norvig.
+\newblock \emph{Artificial Intelligence: A Modern Approach}.
+\newblock 4.ª ed., Global Edition, Pearson, 2021.
+
+\bibitem{tubgtfs}
+Transportes Urbanos de Braga.
+\newblock \emph{GTFS --- Transportes Urbanos de Braga}.
+\newblock \url{https://dados.gov.pt/pt/datasets/gtfs-transportes-urbanos-de-braga/}.
+
+\bibitem{aimapython}
+AIMA Code.
+\newblock \emph{aima-python: Python implementation of algorithms from AIMA}.
+\newblock \url{https://github.com/aimacode/aima-python}.
+
+\bibitem{gtfsref}
+MobilityData.
+\newblock \emph{GTFS Schedule Reference}.
+\newblock \url{https://gtfs.org/schedule/reference/}.
+
+\end{thebibliography}
+
+\end{document}
