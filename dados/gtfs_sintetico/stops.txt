@@ -1,0 +1,9 @@
+stop_id,stop_name,stop_lat,stop_lon
+S01,Santa Margarida (Camões),41.555382,-8.419050
+S02,Av. Liberdade,41.550877,-8.409419
+S03,Central,41.562589,-8.415438
+S04,Estação,41.559886,-8.437108
+S05,Gualtar,41.567995,-8.388953
+S06,Maximinos,41.547274,-8.431089
+S07,Liberdade (Igreja),41.552679,-8.408817
+S08,Hospital,41.576103,-8.397380

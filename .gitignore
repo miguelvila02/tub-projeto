@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Biblioteca externa (clonar à parte)
+lib/
+
+# Dados GTFS (descarregar com as instruções do README)
+dados/gtfs/*.txt
+dados/gtfs/*.zip
+
+# Feed em tempo real (demasiado grande para o GitHub)
+dados/gtfs_rt/brutos/
+
+# LaTeX
+relatorio/*.aux
+relatorio/*.log
+relatorio/*.out
+relatorio/*.toc
+relatorio/*.synctex.gz
+relatorio/*.fls
+relatorio/*.fdb_latexmk
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Dados processados muito grandes
+dados/gtfs_rt/processados/previsoes.csv
+
+# Editores
+.vscode/
+.idea/
