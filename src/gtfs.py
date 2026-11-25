@@ -53,7 +53,33 @@ def carregar_gtfs(pasta: Path = PASTA_GTFS) -> dict[str, pd.DataFrame]:
         # Algumas paragens intermédias podem não ter hora (interpoladas)
         st["chegada"] = st["chegada"].fillna(st["partida"])
         st["partida"] = st["partida"].fillna(st["chegada"])
+        tabelas["stop_times"], removidas = limpar_viagens(st)
+        if removidas:
+            print(f"Aviso: {len(removidas)} viagem(ns) com horários impossíveis removida(s): "
+                  f"{', '.join(removidas[:10])}")
     return tabelas
+
+
+def limpar_viagens(st: pd.DataFrame, duracao_max: float = 180,
+                   salto_max: float = 60) -> tuple[pd.DataFrame, list[str]]:
+    """Remove viagens com horários impossíveis.
+
+    Uma viagem é considerada inválida se durar mais de `duracao_max` minutos,
+    se tiver um troço entre paragens consecutivas com mais de `salto_max`
+    minutos, ou se o tempo andar para trás. (No GTFS dos TUB de nov/2026,
+    por exemplo, a viagem 58_211 dura 23 h.)
+    """
+    st = st.sort_values(["trip_id", "stop_sequence"])
+    dif = st.groupby("trip_id")["chegada"].diff()
+    por_viagem = st.assign(dif=dif).groupby("trip_id").agg(
+        ini=("partida", "min"), fim=("chegada", "max"),
+        salto=("dif", "max"), recua=("dif", "min"))
+    invalidas = por_viagem[
+        (por_viagem["fim"] - por_viagem["ini"] > duracao_max)
+        | (por_viagem["salto"] > salto_max)
+        | (por_viagem["recua"] < 0)
+    ].index.tolist()
+    return st[~st["trip_id"].isin(invalidas)], invalidas
 
 
 # ---------------------------------------------------------------------------
