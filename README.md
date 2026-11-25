@@ -16,6 +16,7 @@ tub-projeto/
 ├── src/
 │   ├── gtfs.py      # ler e filtrar os dados GTFS
 │   ├── grafo.py     # construir o grafo (paragem, hora)
+│   ├── recolha_rt.py # recolha periódica do feed GTFS-Realtime
 │   ├── procura.py   # formulação do problema + algoritmos de procura
 │   ├── markov.py    # cadeia de Markov dos atrasos
 │   └── simulacao.py # Monte Carlo
@@ -55,9 +56,50 @@ conda env update -f environment.yml --prune
 python src/gtfs.py
 ```
 
-## Registo de atrasos
+## Recolha do tempo real (GTFS-Realtime)
 
-Preencher `dados/atrasos/registo_atrasos.csv`, uma linha por paragem observada.
+Os TUB disponibilizam dois feeds, que `src/recolha_rt.py` descarrega a cada
+minuto, nos dias úteis entre as 06:30 e as 10:30 (hora de Lisboa):
+
+- `trip_updates`: previsões de chegada e atrasos;
+- `vehicle_positions`: posição GPS dos veículos.
+
+Os ficheiros ficam em `dados/gtfs_rt/brutos/AAAA-MM-DD/`, comprimidos. Se um
+feed não mudou desde o pedido anterior, não se guarda outra cópia.
+
+**Os TUB pediram uma frequência moderada de pedidos: não usar intervalos
+abaixo de 60 s sem necessidade (o script recusa menos de 30 s).**
+
+### Opção A: automática, no GitHub (recomendada)
+
+O workflow `.github/workflows/recolha.yml` corre sozinho nos dias úteis de manhã,
+nos servidores do GitHub, sem ser preciso ter o computador ligado.
+
+1. Fazer push do projeto (o repositório tem de ser **público**: nos privados os
+   minutos gratuitos não chegam).
+2. Testar: separador **Actions** → *Recolha GTFS-RT* → **Run workflow**
+   (com "Só um pedido" marcado). No fim, a execução tem um artefacto com 2 ficheiros.
+3. A partir daí corre sozinho. Para trazer os dados para o computador:
+
+```bash
+bash scripts/descarregar_dados.sh
+```
+
+Os artefactos ficam guardados 90 dias no GitHub.
+
+### Opção B: no computador
+
+```bash
+python src/recolha_rt.py --uma-vez     # teste rápido
+python src/recolha_rt.py               # fica a correr; recolhe nos dias úteis 06:30-10:30
+```
+
+O computador tem de estar ligado e sem suspender durante a janela.
+
+## Registo de atrasos (opcional)
+
+Opcional: o tempo real valida-se cruzando os dois feeds. Se calhar, anotar
+algumas passagens em `dados/atrasos/registo_atrasos.csv`, uma linha por paragem observada.
 Anotar 2 a 4 paragens por viagem e usar o mesmo `id_viagem` em todas as linhas da mesma viagem.
 
 | coluna         | exemplo     | notas                                   |

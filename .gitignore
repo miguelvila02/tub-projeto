@@ -13,6 +13,9 @@ dados/gtfs/*.zip
 # Feed em tempo real (demasiado grande para o GitHub)
 dados/gtfs_rt/brutos/
 
+# Dados processados muito grandes
+dados/gtfs_rt/processados/previsoes.csv
+
 # LaTeX
 relatorio/*.aux
 relatorio/*.log
@@ -22,13 +25,10 @@ relatorio/*.synctex.gz
 relatorio/*.fls
 relatorio/*.fdb_latexmk
 
-# Sistema
-.DS_Store
-Thumbs.db
-
-# Dados processados muito grandes
-dados/gtfs_rt/processados/previsoes.csv
-
 # Editores
 .vscode/
 .idea/
+
+# Sistema
+.DS_Store
+Thumbs.db

@@ -1,0 +1,56 @@
+# Recolha diária do feed GTFS-Realtime dos TUB, nos servidores do GitHub.
+#
+# Corre nos dias úteis de manhã e guarda os dados como "artefacto" da
+# execução (fica disponível 90 dias). Para os descarregar para o computador:
+#     bash scripts/descarregar_dados.sh
+#
+# Nota: o cron do GitHub está em UTC. Em Lisboa, no inverno, UTC = hora local,
+# por isso 06:15 UTC = 06:15 em Lisboa. O script espera sozinho até às 06:30.
+# (Na hora de verão, mudar para "15 5 * * 1-5".)
+
+name: Recolha GTFS-RT
+
+on:
+  schedule:
+    - cron: "15 6 * * 1-5"
+  workflow_dispatch:        # permite lançar à mão no separador "Actions"
+    inputs:
+      teste:
+        description: "Só um pedido a cada feed (para testar)"
+        type: boolean
+        default: true
+
+jobs:
+  recolha:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install gtfs-realtime-bindings
+
+      - name: Data de hoje (Lisboa)
+        id: data
+        run: echo "hoje=$(TZ=Europe/Lisbon date +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Recolher
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.teste }}" = "true" ]; then
+            python src/recolha_rt.py --uma-vez
+          else
+            python src/recolha_rt.py --sair-no-fim
+          fi
+
+      - name: Guardar os dados como artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtfs-rt-${{ steps.data.outputs.hoje }}-${{ github.run_id }}
+          path: dados/gtfs_rt/brutos/
+          retention-days: 90
+          if-no-files-found: warn

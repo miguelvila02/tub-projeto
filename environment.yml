@@ -7,5 +7,9 @@ dependencies:
   - numpy>=1.24
   - matplotlib>=3.7
   - folium>=0.15
+  - protobuf
   - jupyter
   - ipykernel
+  - pip
+  - pip:
+      - gtfs-realtime-bindings
