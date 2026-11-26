@@ -17,6 +17,8 @@ tub-projeto/
 │   ├── gtfs.py      # ler e filtrar os dados GTFS
 │   ├── grafo.py     # construir o grafo (paragem, hora)
 │   ├── recolha_rt.py # recolha periódica do feed GTFS-Realtime
+│   ├── meteo.py     # precipitação e temperatura horárias (Open-Meteo)
+│   ├── ver_pb.py    # ver o conteúdo de um .pb.gz em tabela
 │   ├── procura.py   # formulação do problema + algoritmos de procura
 │   ├── markov.py    # cadeia de Markov dos atrasos
 │   └── simulacao.py # Monte Carlo
@@ -97,6 +99,20 @@ python src/recolha_rt.py               # fica a correr; dias úteis 06:30-10:30 
 ```
 
 O computador tem de estar ligado e sem suspender durante a janela.
+
+## Meteorologia
+
+A precipitação e a temperatura horárias em Braga vêm do Open-Meteo (gratuito,
+sem registo) e servem para explicar dias anómalos nos atrasos.
+
+- No GitHub: cada execução da recolha guarda também os últimos 3 dias de
+  meteorologia; o `scripts/descarregar_dados.sh` junta tudo em
+  `dados/meteo/meteo_braga.csv`.
+- No computador, a qualquer altura (recupera até 92 dias para trás):
+
+```bash
+python src/meteo.py --dias 30
+```
 
 ## Registo de atrasos (opcional)
 

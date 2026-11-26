@@ -4,6 +4,7 @@
 #
 # Uso (na raiz do projeto):  bash scripts/descarregar_dados.sh
 set -euo pipefail
+shopt -s nullglob
 
 destino="dados/gtfs_rt/brutos"
 tmp="$(mktemp -d)"
@@ -19,4 +20,10 @@ for artefacto in "$tmp"/gtfs-rt-*; do
 done
 
 echo "Dias disponíveis em $destino:"
-find "$destino" -mindepth 1 -maxdepth 1 -type d -printf '  %f  ' -exec sh -c 'ls "$1" | grep -c "\.pb\.gz$"' _ {} \; | sed 's/$/ ficheiros/'
+find "$destino" -mindepth 1 -maxdepth 1 -type d -name '20*' -printf '  %f  ' -exec sh -c 'ls "$1" | grep -c "\.pb\.gz$"' _ {} \; | sort | sed 's/$/ ficheiros/'
+
+# Meteorologia: junta os CSV de cada execução num só ficheiro
+if [ -d "$destino/meteo" ]; then
+    echo
+    python src/meteo.py --juntar "$destino/meteo"
+fi
