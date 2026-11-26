@@ -59,7 +59,8 @@ python src/gtfs.py
 ## Recolha do tempo real (GTFS-Realtime)
 
 Os TUB disponibilizam dois feeds, que `src/recolha_rt.py` descarrega a cada
-minuto, nos dias úteis entre as 06:30 e as 10:30 (hora de Lisboa):
+minuto, todos os dias (incluindo fins de semana e feriados), das 06:30 às 10:30
+e das 16:30 às 19:30 (hora de Lisboa):
 
 - `trip_updates`: previsões de chegada e atrasos;
 - `vehicle_positions`: posição GPS dos veículos.
@@ -73,7 +74,8 @@ abaixo de 60 s sem necessidade (o script recusa menos de 30 s).**
 ### Opção A: automática, no GitHub (recomendada)
 
 O workflow `.github/workflows/recolha.yml` corre sozinho nos dias úteis de manhã,
-nos servidores do GitHub, sem ser preciso ter o computador ligado.
+todos os dias de manhã e ao fim da tarde, nos servidores do GitHub, sem ser
+preciso ter o computador ligado.
 
 1. Fazer push do projeto (o repositório tem de ser **público**: nos privados os
    minutos gratuitos não chegam).
@@ -91,7 +93,7 @@ Os artefactos ficam guardados 90 dias no GitHub.
 
 ```bash
 python src/recolha_rt.py --uma-vez     # teste rápido
-python src/recolha_rt.py               # fica a correr; recolhe nos dias úteis 06:30-10:30
+python src/recolha_rt.py               # fica a correr; dias úteis 06:30-10:30 e 16:30-19:30
 ```
 
 O computador tem de estar ligado e sem suspender durante a janela.

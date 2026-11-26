@@ -4,22 +4,30 @@
 # execução (fica disponível 90 dias). Para os descarregar para o computador:
 #     bash scripts/descarregar_dados.sh
 #
-# Nota: o cron do GitHub está em UTC. Em Lisboa, no inverno, UTC = hora local.
-# O script espera sozinho até às 06:30 e sai às 10:30 (hora de Lisboa).
+# Janelas de recolha (hora de Lisboa): 06:30-10:30 e 16:30-19:30, todos os dias
+# (dias úteis, fins de semana e feriados).
+# O cron do GitHub está em UTC; em Lisboa, no inverno, UTC = hora local.
+# Cada execução espera que a janela abra (até 60 min), recolhe até ao fim
+# dessa janela e termina.
 #
 # O GitHub às vezes atrasa ou salta agendamentos quando está sobrecarregado.
-# Por isso há quatro disparos: se um falhar, o seguinte arranca. A regra de
-# "concurrency" põe os disparos extra em fila; quando chega a vez deles a
-# janela já fechou e terminam logo, sem recolher nada em duplicado.
+# Por isso há quatro disparos por janela: se um falhar, o seguinte arranca.
+# A regra de "concurrency" põe os disparos extra em fila; quando chega a vez
+# deles a janela já fechou e terminam logo, sem recolher nada em duplicado.
 
 name: Recolha GTFS-RT
 
 on:
   schedule:
-    - cron: "45 5 * * 1-5"
-    - cron: "15 6 * * 1-5"
-    - cron: "45 6 * * 1-5"
-    - cron: "15 7 * * 1-5"
+    - cron: "45 5 * * *"
+    - cron: "15 6 * * *"
+    - cron: "45 6 * * *"
+    - cron: "15 7 * * *"
+    # fim de tarde
+    - cron: "45 15 * * *"
+    - cron: "15 16 * * *"
+    - cron: "45 16 * * *"
+    - cron: "15 17 * * *"
   workflow_dispatch:        # permite lançar à mão no separador "Actions"
     inputs:
       teste:
@@ -54,7 +62,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.teste }}" = "true" ]; then
             python src/recolha_rt.py --uma-vez
           else
-            python src/recolha_rt.py --sair-no-fim
+            python src/recolha_rt.py --sair-no-fim --fins-de-semana
           fi
 
       - name: Guardar os dados como artefacto

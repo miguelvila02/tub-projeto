@@ -1,7 +1,7 @@
 """Recolha periódica do feed GTFS-Realtime dos TUB.
 
 Descarrega os feeds `trip_updates` e `vehicle_positions` em intervalos
-regulares, dentro de uma janela horária, e guarda cada resposta comprimida:
+regulares, dentro de janelas horárias (manhã e fim de tarde), e guarda cada resposta comprimida:
 
     dados/gtfs_rt/brutos/AAAA-MM-DD/trip_updates_HHMMSS.pb.gz
     dados/gtfs_rt/brutos/AAAA-MM-DD/vehicle_positions_HHMMSS.pb.gz
@@ -11,11 +11,12 @@ outra cópia (poupa espaço). Todas as horas são de Lisboa, mesmo que o
 computador esteja noutro fuso (por exemplo, num servidor do GitHub).
 
 Uso:
-    python src/recolha_rt.py                  # corre todos os dias úteis, 06:30-10:30
+    python src/recolha_rt.py                  # dias úteis, 06:30-10:30 e 16:30-19:30
     python src/recolha_rt.py --uma-vez        # um pedido a cada feed e sai (teste)
-    python src/recolha_rt.py --sempre         # ignora a janela horária
-    python src/recolha_rt.py --sair-no-fim    # sai quando a janela de hoje termina
-    python src/recolha_rt.py --inicio 07:00 --fim 09:30 --intervalo 60
+    python src/recolha_rt.py --sempre         # ignora as janelas horárias
+    python src/recolha_rt.py --sair-no-fim    # recolhe a janela atual (ou a próxima, se
+                                              # abrir dentro de 60 min) e sai
+    python src/recolha_rt.py --janelas 07:00-09:30,17:00-19:00 --intervalo 60
 
 Os TUB pediram uma frequência de pedidos moderada: não baixar o intervalo
 abaixo de 30 s.
@@ -153,20 +154,38 @@ class Recolhedor:
 
 
 # ---------------------------------------------------------------------------
-def dentro_da_janela(t: datetime, inicio: dtime, fim: dtime, fins_de_semana: bool) -> bool:
+def ler_janelas(texto: str) -> list[tuple[dtime, dtime]]:
+    """'06:30-10:30,16:30-19:30' -> [(06:30, 10:30), (16:30, 19:30)]"""
+    janelas = []
+    for parte in texto.split(","):
+        ini, fim = (hora(x.strip()) for x in parte.split("-"))
+        if fim <= ini:
+            raise ValueError(f"janela inválida: {parte}")
+        janelas.append((ini, fim))
+    return sorted(janelas)
+
+
+def janela_atual(t: datetime, janelas, fins_de_semana: bool):
+    """A janela (início, fim) em que `t` está, ou None."""
     if not fins_de_semana and t.weekday() >= 5:
-        return False
-    return inicio <= t.time() < fim
+        return None
+    for ini, fim in janelas:
+        if ini <= t.time() < fim:
+            return ini, fim
+    return None
 
 
-def proximo_inicio(t: datetime, inicio: dtime, fins_de_semana: bool) -> datetime:
-    """Próximo instante em que a janela abre."""
-    candidato = t.replace(hour=inicio.hour, minute=inicio.minute, second=0, microsecond=0)
-    if candidato <= t:
-        candidato += timedelta(days=1)
-    while not fins_de_semana and candidato.weekday() >= 5:
-        candidato += timedelta(days=1)
-    return candidato
+def proximo_inicio(t: datetime, janelas, fins_de_semana: bool) -> datetime:
+    """Próximo instante em que alguma janela abre."""
+    dia = t.replace(second=0, microsecond=0)
+    for _ in range(8):
+        if fins_de_semana or dia.weekday() < 5:
+            for ini, _fim in janelas:
+                candidato = dia.replace(hour=ini.hour, minute=ini.minute)
+                if candidato > t:
+                    return candidato
+        dia = (dia + timedelta(days=1)).replace(hour=0, minute=0)
+    raise RuntimeError("nenhuma janela nos próximos 7 dias")
 
 
 def dormir_ate(alvo: datetime) -> None:
@@ -180,13 +199,16 @@ def dormir_ate(alvo: datetime) -> None:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--inicio", default="06:30", help="início da janela (hora de Lisboa)")
-    p.add_argument("--fim", default="10:30", help="fim da janela (hora de Lisboa)")
+    p.add_argument("--janelas", default="06:30-10:30,16:30-19:30",
+                   help="janelas de recolha, hora de Lisboa (ex.: 06:30-10:30,16:30-19:30)")
     p.add_argument("--intervalo", type=int, default=60, help="segundos entre pedidos (mín. 30)")
     p.add_argument("--fins-de-semana", action="store_true", help="recolher também ao sábado e domingo")
     p.add_argument("--sempre", action="store_true", help="ignorar a janela horária")
     p.add_argument("--uma-vez", action="store_true", help="um único pedido a cada feed (teste)")
-    p.add_argument("--sair-no-fim", action="store_true", help="terminar quando a janela de hoje acabar")
+    p.add_argument("--sair-no-fim", action="store_true",
+                   help="terminar quando a janela atual acabar (ou se a próxima estiver longe)")
+    p.add_argument("--espera-max", type=int, default=60,
+                   help="com --sair-no-fim: minutos máximos à espera que uma janela abra")
     p.add_argument("--pasta", type=Path, default=PASTA_BRUTOS, help="onde guardar os ficheiros")
     p.add_argument("--url-trip-updates", default=FEEDS["trip_updates"])
     p.add_argument("--url-vehicle-positions", default=FEEDS["vehicle_positions"])
@@ -196,7 +218,7 @@ def main() -> int:
         p.error(f"--intervalo tem de ser pelo menos {INTERVALO_MINIMO_S} s (pedido dos TUB)")
 
     args.pasta.mkdir(parents=True, exist_ok=True)
-    ficheiro_log = args.pasta / f"recolha_{agora():%Y-%m-%d}.log"
+    ficheiro_log = args.pasta / f"recolha_{agora():%Y-%m-%d_%H%M}.log"
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(message)s",
@@ -216,37 +238,44 @@ def main() -> int:
     feeds = {"trip_updates": args.url_trip_updates,
              "vehicle_positions": args.url_vehicle_positions}
     rec = Recolhedor(args.pasta, feeds)
-    inicio, fim = hora(args.inicio), hora(args.fim)
+    try:
+        janelas = ler_janelas(args.janelas)
+    except ValueError as erro:
+        p.error(str(erro))
 
     if args.uma_vez:
         rec.recolher()
         log.info("Teste concluído: %s", rec.balanco())
         return 0 if rec.erros == 0 else 1
 
-    janela = "sempre" if args.sempre else f"{args.inicio}-{args.fim}"
-    log.info("Recolha iniciada (janela %s, intervalo %d s). Ctrl+C para parar.", janela, args.intervalo)
+    descricao = "sempre" if args.sempre else args.janelas
+    log.info("Recolha iniciada (janelas %s, intervalo %d s). Ctrl+C para parar.", descricao, args.intervalo)
+    ja_recolheu = False
 
     while not _parar:
         t = agora()
-        if args.sempre or dentro_da_janela(t, inicio, fim, args.fins_de_semana):
+        janela = None if args.sempre else janela_atual(t, janelas, args.fins_de_semana)
+        if args.sempre or janela:
             tick = time.monotonic()
             rec.recolher()
+            ja_recolheu = True
             # Mantém o ritmo certo, descontando o tempo do pedido
-            espera = args.intervalo - (time.monotonic() - tick)
-            fim_hoje = t.replace(hour=fim.hour, minute=fim.minute, second=0, microsecond=0)
-            if espera > 0:
-                dormir_ate(min(agora() + timedelta(seconds=espera), fim_hoje)
-                           if not args.sempre else agora() + timedelta(seconds=espera))
+            alvo = agora() + timedelta(seconds=max(0.0, args.intervalo - (time.monotonic() - tick)))
+            if janela:
+                fim_janela = t.replace(hour=janela[1].hour, minute=janela[1].minute, second=0, microsecond=0)
+                alvo = min(alvo, fim_janela)
+            dormir_ate(alvo)
             continue
 
-        # Fora da janela
-        if args.sair_no_fim and t.time() >= fim:
-            log.info("Janela de hoje terminada.")
-            break
-        seguinte = proximo_inicio(t, inicio, args.fins_de_semana)
-        if args.sair_no_fim and seguinte.date() != t.date():
-            log.info("Sem mais recolhas hoje.")
-            break
+        # Fora de qualquer janela
+        seguinte = proximo_inicio(t, janelas, args.fins_de_semana)
+        if args.sair_no_fim:
+            if ja_recolheu:
+                log.info("Janela terminada.")
+                break
+            if (seguinte - t) > timedelta(minutes=args.espera_max):
+                log.info("Próxima janela só às %s; nada a fazer agora.", f"{seguinte:%H:%M}")
+                break
         log.info("Fora da janela. Próxima recolha: %s", f"{DIAS_PT[seguinte.weekday()]} {seguinte:%d/%m %H:%M}")
         dormir_ate(seguinte)
 
