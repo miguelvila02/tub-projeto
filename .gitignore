@@ -32,3 +32,6 @@ relatorio/*.fdb_latexmk
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Tempo
+dados/meteo/
