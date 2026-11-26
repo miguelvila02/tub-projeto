@@ -51,7 +51,7 @@ jobs:
           python-version: "3.11"
 
       - name: Instalar dependências
-        run: pip install gtfs-realtime-bindings
+        run: pip install gtfs-realtime-bindings pandas
 
       - name: Data de hoje (Lisboa)
         id: data
@@ -64,6 +64,13 @@ jobs:
           else
             python src/recolha_rt.py --sair-no-fim --fins-de-semana
           fi
+
+      - name: Meteorologia (Open-Meteo)
+        if: always()
+        continue-on-error: true   # nunca deixa falhar a recolha dos TUB
+        run: |
+          python src/meteo.py --dias 3 \
+            --saida "dados/gtfs_rt/brutos/meteo/meteo_${{ steps.data.outputs.hoje }}_${{ github.run_id }}.csv"
 
       - name: Guardar os dados como artefacto
         if: always()
